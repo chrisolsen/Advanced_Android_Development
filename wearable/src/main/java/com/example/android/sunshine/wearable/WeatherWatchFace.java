@@ -30,10 +30,14 @@ import android.os.Handler;
 import android.os.Message;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
+import android.text.format.DateFormat;
 import android.text.format.Time;
 import android.view.SurfaceHolder;
 
 import java.lang.ref.WeakReference;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Locale;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -93,6 +97,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             }
         };
         int mTapCount;
+        Calendar mCalendar = Calendar.getInstance();
 
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
@@ -185,7 +190,6 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
-            mTime.setToNow();
 
             // Draw the background.
             if (isInAmbientMode()) {
@@ -194,34 +198,61 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 canvas.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), mBackgroundPaint);
             }
 
-            // Find the center. Ignore the window insets so that, on round watches with a
-            // "chin", the watch face is centered on the entire screen, not just the usable
-            // portion.
-            float centerX = bounds.width() / 2f;
-            float centerY = bounds.height() / 2f;
+            // date values
+            SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, MMM d yyyy", Locale.CANADA);
+            String date, hour, minute, tempHigh, tempLow;
 
-            float secRot = mTime.second / 30f * (float) Math.PI;
-            int minutes = mTime.minute;
-            float minRot = minutes / 30f * (float) Math.PI;
-            float hrRot = ((mTime.hour + (minutes / 60f)) / 6f) * (float) Math.PI;
+            boolean is24 = DateFormat.is24HourFormat(WeatherWatchFace.this);
+            date = dateFormat.format(mCalendar.getTime());
+            hour = getHour();
+            minute = getMinute();
+            tempHigh = "23°";    // TODO: obtain these via a broadcast reciever..?
+            tempLow = "19°";
 
-            float secLength = centerX - 20;
-            float minLength = centerX - 40;
-            float hrLength = centerX - 80;
+            // init offsets
+            float xCenter = bounds.centerX();
+            float x = 0f;
+            float y = 60f;
 
-            if (!mAmbient) {
-                float secX = (float) Math.sin(secRot) * secLength;
-                float secY = (float) -Math.cos(secRot) * secLength;
-                canvas.drawLine(centerX, centerY, centerX + secX, centerY + secY, mHandPaint);
+            // draw time
+            canvas.drawText(":", x, y, mHandPaint);
+
+            x = xCenter - mHandPaint.measureText(hour);
+            canvas.drawText(hour, x, y, mHandPaint);
+
+            x = xCenter + mHandPaint.measureText(":");
+            canvas.drawText(minute, x, y, mHandPaint);
+
+            // date text
+            y += 40f;
+            x = xCenter - mHandPaint.measureText(date) / 2;
+            canvas.drawText(date, x, y, mHandPaint);
+
+            // temps
+            y += 40f;
+            x = xCenter - mHandPaint.measureText(tempHigh);
+            canvas.drawText(tempHigh, x, y, mHandPaint);
+            x = xCenter;
+            canvas.drawText(tempLow, x, y, mHandPaint);
+        }
+
+        private String getIcon() {
+            return "";
+        }
+
+        private String getMinute() {
+            int min = mCalendar.get(Calendar.MINUTE);
+            if (min < 10) {
+                return "0" + String.valueOf(min);
+            } else {
+                return String.valueOf(min);
             }
+        }
 
-            float minX = (float) Math.sin(minRot) * minLength;
-            float minY = (float) -Math.cos(minRot) * minLength;
-            canvas.drawLine(centerX, centerY, centerX + minX, centerY + minY, mHandPaint);
+        private String getHour() {
+            int hour = mCalendar.get(Calendar.HOUR);
 
-            float hrX = (float) Math.sin(hrRot) * hrLength;
-            float hrY = (float) -Math.cos(hrRot) * hrLength;
-            canvas.drawLine(centerX, centerY, centerX + hrX, centerY + hrY, mHandPaint);
+            return String.valueOf(hour == 0 ? 12 : hour);
         }
 
         @Override
