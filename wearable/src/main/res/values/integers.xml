@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <integer name="text_size_large">80</integer>
+    <integer name="text_size_medium">48</integer>
+    <integer name="text_size_small">32</integer>
+    <integer name="divider_width">80</integer>
+    <integer name="text_padding">20</integer>
+    <integer name="y_center_offset">20</integer>
+</resources>

@@ -3,5 +3,5 @@
     <color name="background_ambient">#000000</color>
     <color name="background_interactive">#00A9EF</color>
     <color name="text_primary">#ffffff</color>
-    <color name="text_secondary">#cccccc</color>
+    <color name="text_secondary">#99ffffff</color>
 </resources>

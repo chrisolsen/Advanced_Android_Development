@@ -25,6 +25,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
@@ -47,17 +48,32 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
     }
 
     private class Engine extends CanvasWatchFaceService.Engine {
+
+        /**
+         * Whether the display supports fewer bits for each color in ambient mode. When true, we
+         * disable anti-aliasing in ambient mode.
+         */
+        boolean mLowBitAmbient;
         boolean mRegisteredTimeZoneReceiver = false;
         boolean mAmbient;
 
         int mTapCount;
 
-        int mTimeFontSize = 36;
-        int mDateFontSize = 16;
-        int mTempFontSize = 24;
+        float mLargeTextSize;
+        float mMediumTextSize;
+        float mSmallTextSize;
+        float mDividerWidth;
+        float mTextPadding;
+        float mYCenterOffset;
 
-        Paint mPrimaryTextPaint;
-        Paint mSecondaryTextPaint;
+        Paint mLargeThickTextPaint;
+        Paint mLargeThinTextPaint;
+        Paint mMediumThickTextPaint;
+        Paint mMediumThinTextPaint;
+        Paint mSmallTextPaint;
+
+        Typeface mThinTypeface;
+
         Paint mBackgroundPaint;
 
         Calendar mCalendar = Calendar.getInstance();
@@ -70,12 +86,6 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 mCalendar.setTimeZone(TimeZone.getTimeZone(timeZoneId));
             }
         };
-
-        /**
-         * Whether the display supports fewer bits for each color in ambient mode. When true, we
-         * disable anti-aliasing in ambient mode.
-         */
-        boolean mLowBitAmbient;
 
         @Override
         public void onCreate(SurfaceHolder holder) {
@@ -90,17 +100,48 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
             Resources resources = WeatherWatchFace.this.getResources();
 
+            int backgroundColor = resources.getColor(R.color.background_interactive);
+            int primaryColor = resources.getColor(R.color.text_primary);
+            int secondaryColor = resources.getColor(R.color.text_secondary);
+
+            mThinTypeface = Typeface.create("sans-serif-light", Typeface.NORMAL);
+
+            mLargeTextSize = resources.getInteger(R.integer.text_size_large);
+            mMediumTextSize = resources.getInteger(R.integer.text_size_medium);
+            mSmallTextSize = resources.getInteger(R.integer.text_size_small);
+            mDividerWidth = resources.getInteger(R.integer.divider_width);
+            mTextPadding = resources.getInteger(R.integer.text_padding);
+            mYCenterOffset = resources.getInteger(R.integer.y_center_offset);
+
             mBackgroundPaint = new Paint();
-            mBackgroundPaint.setColor(resources.getColor(R.color.background_interactive));
+            mBackgroundPaint.setColor(backgroundColor);
 
-            mPrimaryTextPaint = new Paint();
-            mPrimaryTextPaint.setColor(resources.getColor(R.color.text_primary));
-//            mPrimaryTextPaint.setStrokeWidth(resources.getDimension(R.dimen.analog_hand_stroke));
-            mPrimaryTextPaint.setAntiAlias(true);
-//            mPrimaryTextPaint.setStrokeCap(Paint.Cap.ROUND);
+            mLargeThickTextPaint = new Paint();
+            mLargeThickTextPaint.setColor(primaryColor);
+            mLargeThickTextPaint.setAntiAlias(true);
+            mLargeThickTextPaint.setTextSize(mLargeTextSize);
 
-            mSecondaryTextPaint = new Paint();
-            mSecondaryTextPaint.setColor(resources.getColor(R.color.text_secondary));
+            mLargeThinTextPaint = new Paint();
+            mLargeThinTextPaint.setColor(primaryColor);
+            mLargeThinTextPaint.setAntiAlias(true);
+            mLargeThinTextPaint.setTextSize(mLargeTextSize);
+            mLargeThinTextPaint.setTypeface(mThinTypeface);
+
+            mMediumThickTextPaint = new Paint();
+            mMediumThickTextPaint.setColor(primaryColor);
+            mMediumThickTextPaint.setAntiAlias(true);
+            mMediumThickTextPaint.setTextSize(mMediumTextSize);
+
+            mMediumThinTextPaint = new Paint();
+            mMediumThinTextPaint.setColor(secondaryColor);
+            mMediumThinTextPaint.setAntiAlias(true);
+            mMediumThinTextPaint.setTextSize(mMediumTextSize);
+            mMediumThinTextPaint.setTypeface(mThinTypeface);
+
+            mSmallTextPaint = new Paint();
+            mSmallTextPaint.setColor(secondaryColor);
+            mSmallTextPaint.setAntiAlias(true);
+            mSmallTextPaint.setTextSize(mSmallTextSize);
         }
 
         @Override
@@ -126,7 +167,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             if (mAmbient != inAmbientMode) {
                 mAmbient = inAmbientMode;
                 if (mLowBitAmbient) {
-                    mPrimaryTextPaint.setAntiAlias(!inAmbientMode);
+                    mLargeThickTextPaint.setAntiAlias(!inAmbientMode);
                 }
                 invalidate();
             }
@@ -180,29 +221,37 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
             // init offsets
             float xCenter = bounds.centerX();
-            float x = 0f;
-            float y = 60f;
+            float yCenter = bounds.centerY();
+            float x;
+            float y;
 
-            // draw time
-            canvas.drawText(":", x, y, mPrimaryTextPaint);
+            float colonWidth = mLargeThickTextPaint.measureText(":");
 
-            x = xCenter - mPrimaryTextPaint.measureText(hour);
-            canvas.drawText(hour, x, y, mPrimaryTextPaint);
-
-            x = xCenter + mPrimaryTextPaint.measureText(":");
-            canvas.drawText(minute, x, y, mPrimaryTextPaint);
+            // Note: text is drawn vertically outward from the center of the wearable device
 
             // date text
-            y += 40f;
-            x = xCenter - mPrimaryTextPaint.measureText(date) / 2;
-            canvas.drawText(date, x, y, mPrimaryTextPaint);
+            x = xCenter - mSmallTextPaint.measureText(date) / 2;
+            y = yCenter - mYCenterOffset / 2;
+            canvas.drawText(date, x, y, mSmallTextPaint);
+
+            // draw time
+            y -= mSmallTextPaint.getTextSize() + mTextPadding;
+            canvas.drawText(":", xCenter - colonWidth / 2, y, mLargeThickTextPaint);
+            x = xCenter - mLargeThickTextPaint.measureText(hour) - colonWidth / 2;
+            canvas.drawText(hour, x, y, mLargeThickTextPaint);
+            x = xCenter + colonWidth / 2;
+            canvas.drawText(minute, x, y, mLargeThinTextPaint);
+
+            // divider line
+            y = yCenter + mYCenterOffset;
+            canvas.drawLine(xCenter - mDividerWidth / 2, y, xCenter + mDividerWidth / 2, y, mMediumThinTextPaint);
 
             // temps
-            y += 40f;
-            x = xCenter - mPrimaryTextPaint.measureText(tempHigh);
-            canvas.drawText(tempHigh, x, y, mPrimaryTextPaint);
+            y += mMediumTextSize + mTextPadding;
+            x = xCenter - mMediumThickTextPaint.measureText(tempHigh);
+            canvas.drawText(tempHigh, x, y, mMediumThickTextPaint);
             x = xCenter;
-            canvas.drawText(tempLow, x, y, mPrimaryTextPaint);
+            canvas.drawText(tempLow, x, y, mMediumThinTextPaint);
         }
 
         private String getIcon() {
@@ -219,9 +268,11 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         }
 
         private String getHour() {
-            int hour = mCalendar.get(Calendar.HOUR);
-
-            return String.valueOf(hour == 0 ? 12 : hour);
+            int hour = mCalendar.get(Calendar.HOUR_OF_DAY);
+            if (hour < 10) {
+                return "0" + String.valueOf(hour);
+            }
+            return String.valueOf(hour);
         }
 
         @Override
