@@ -21,11 +21,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+import android.database.Cursor;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
@@ -36,10 +39,6 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
 
-/**
- * Analog watch face with a ticking second hand. In ambient mode, the second hand isn't shown. On
- * devices with low-bit ambient mode, the hands are drawn without anti-aliasing in ambient mode.
- */
 public class WeatherWatchFace extends CanvasWatchFaceService {
 
     @Override
@@ -47,17 +46,28 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         return new Engine();
     }
 
+    private class Weather {
+
+        public Weather(int min, int max) {
+            this.low = min;
+            this.high = max;
+        }
+
+        int high;
+        int low;
+    }
+
     private class Engine extends CanvasWatchFaceService.Engine {
 
-        /**
-         * Whether the display supports fewer bits for each color in ambient mode. When true, we
-         * disable anti-aliasing in ambient mode.
-         */
         boolean mLowBitAmbient;
+        boolean mBurnProtection;
         boolean mRegisteredTimeZoneReceiver = false;
         boolean mAmbient;
 
         int mTapCount;
+
+        String mHigh;
+        String mLow;
 
         float mLargeTextSize;
         float mMediumTextSize;
@@ -86,6 +96,36 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 mCalendar.setTimeZone(TimeZone.getTimeZone(timeZoneId));
             }
         };
+
+        private class FetchWeatherTask extends AsyncTask<Void, Void, Weather> {
+
+            @Override
+            protected Weather doInBackground(Void... params) {
+                Uri uri = Uri.parse("content://com.example.android.sunshine.app/weather");
+                Cursor c = getContentResolver().query(uri, null, null, null, null);
+
+                if (c != null && c.moveToFirst()) {
+                    int min = c.getInt(c.getColumnIndex("min"));
+                    int max = c.getInt(c.getColumnIndex("max"));
+
+                    c.close();
+
+                    return new Weather(min, max);
+                }
+
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(Weather weather) {
+                super.onPostExecute(weather);
+
+                if (weather != null) {
+                    mHigh = String.valueOf(weather.high);
+                    mLow = String.valueOf(weather.low);
+                }
+            }
+        }
 
         @Override
         public void onCreate(SurfaceHolder holder) {
@@ -142,6 +182,9 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             mSmallTextPaint.setColor(secondaryColor);
             mSmallTextPaint.setAntiAlias(true);
             mSmallTextPaint.setTextSize(mSmallTextSize);
+
+            // fetch the weather
+            new FetchWeatherTask().execute();
         }
 
         @Override
@@ -153,6 +196,9 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         public void onPropertiesChanged(Bundle properties) {
             super.onPropertiesChanged(properties);
             mLowBitAmbient = properties.getBoolean(PROPERTY_LOW_BIT_AMBIENT, false);
+
+            // TODO: need to render hollow text for this to work
+            mBurnProtection = properties.getBoolean(PROPERTY_BURN_IN_PROTECTION, false);
         }
 
         @Override
@@ -168,15 +214,13 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 mAmbient = inAmbientMode;
                 if (mLowBitAmbient) {
                     mLargeThickTextPaint.setAntiAlias(!inAmbientMode);
+                    mMediumThickTextPaint.setAntiAlias(!inAmbientMode);
+                    mSmallTextPaint.setAntiAlias(!inAmbientMode);
                 }
                 invalidate();
             }
         }
 
-        /**
-         * Captures tap event (and tap type) and toggles the background color if the user finishes
-         * a tap.
-         */
         @Override
         public void onTapCommand(int tapType, int x, int y, long eventTime) {
             Resources resources = WeatherWatchFace.this.getResources();
@@ -216,8 +260,8 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             date = dateFormat.format(mCalendar.getTime());
             hour = getHour();
             minute = getMinute();
-            tempHigh = "23°";    // TODO: obtain these via a broadcast reciever..?
-            tempLow = "19°";
+            tempHigh = mHigh != null ? mHigh + "°" : "";
+            tempLow = mLow != null ? mLow + "°" : "";
 
             // init offsets
             float xCenter = bounds.centerX();
@@ -254,27 +298,6 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             canvas.drawText(tempLow, x, y, mMediumThinTextPaint);
         }
 
-        private String getIcon() {
-            return "";
-        }
-
-        private String getMinute() {
-            int min = mCalendar.get(Calendar.MINUTE);
-            if (min < 10) {
-                return "0" + String.valueOf(min);
-            } else {
-                return String.valueOf(min);
-            }
-        }
-
-        private String getHour() {
-            int hour = mCalendar.get(Calendar.HOUR_OF_DAY);
-            if (hour < 10) {
-                return "0" + String.valueOf(hour);
-            }
-            return String.valueOf(hour);
-        }
-
         @Override
         public void onVisibilityChanged(boolean visible) {
             super.onVisibilityChanged(visible);
@@ -305,6 +328,27 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             }
             mRegisteredTimeZoneReceiver = false;
             WeatherWatchFace.this.unregisterReceiver(mTimeZoneReceiver);
+        }
+
+        private String getIcon() {
+            return "";
+        }
+
+        private String getMinute() {
+            int min = mCalendar.get(Calendar.MINUTE);
+            if (min < 10) {
+                return "0" + String.valueOf(min);
+            } else {
+                return String.valueOf(min);
+            }
+        }
+
+        private String getHour() {
+            int hour = mCalendar.get(Calendar.HOUR_OF_DAY);
+            if (hour < 10) {
+                return "0" + String.valueOf(hour);
+            }
+            return String.valueOf(hour);
         }
     }
 }
