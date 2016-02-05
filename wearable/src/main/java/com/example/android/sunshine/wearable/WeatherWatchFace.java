@@ -26,78 +26,50 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
-import android.text.format.DateFormat;
-import android.text.format.Time;
 import android.view.SurfaceHolder;
 
-import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Analog watch face with a ticking second hand. In ambient mode, the second hand isn't shown. On
  * devices with low-bit ambient mode, the hands are drawn without anti-aliasing in ambient mode.
  */
 public class WeatherWatchFace extends CanvasWatchFaceService {
-    /**
-     * Update rate in milliseconds for interactive mode. We update once a second to advance the
-     * second hand.
-     */
-    private static final long INTERACTIVE_UPDATE_RATE_MS = TimeUnit.SECONDS.toMillis(1);
-
-    /**
-     * Handler message id for updating the time periodically in interactive mode.
-     */
-    private static final int MSG_UPDATE_TIME = 0;
 
     @Override
     public Engine onCreateEngine() {
         return new Engine();
     }
 
-    private static class EngineHandler extends Handler {
-        private final WeakReference<WeatherWatchFace.Engine> mWeakReference;
-
-        public EngineHandler(WeatherWatchFace.Engine reference) {
-            mWeakReference = new WeakReference<>(reference);
-        }
-
-        @Override
-        public void handleMessage(Message msg) {
-            WeatherWatchFace.Engine engine = mWeakReference.get();
-            if (engine != null) {
-                switch (msg.what) {
-                    case MSG_UPDATE_TIME:
-                        engine.handleUpdateTimeMessage();
-                        break;
-                }
-            }
-        }
-    }
-
     private class Engine extends CanvasWatchFaceService.Engine {
-        final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
-        Paint mBackgroundPaint;
-        Paint mHandPaint;
         boolean mAmbient;
-        Time mTime;
+
+        int mTapCount;
+
+        int mTimeFontSize = 36;
+        int mDateFontSize = 16;
+        int mTempFontSize = 24;
+
+        Paint mPrimaryTextPaint;
+        Paint mSecondaryTextPaint;
+        Paint mBackgroundPaint;
+
+        Calendar mCalendar = Calendar.getInstance();
+
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                mTime.clear(intent.getStringExtra("time-zone"));
-                mTime.setToNow();
+                String timeZoneId = intent.getStringExtra("time-zone");
+                mCalendar = Calendar.getInstance();
+                mCalendar.setTimeZone(TimeZone.getTimeZone(timeZoneId));
             }
         };
-        int mTapCount;
-        Calendar mCalendar = Calendar.getInstance();
 
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
@@ -119,20 +91,20 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             Resources resources = WeatherWatchFace.this.getResources();
 
             mBackgroundPaint = new Paint();
-            mBackgroundPaint.setColor(resources.getColor(R.color.background));
+            mBackgroundPaint.setColor(resources.getColor(R.color.background_interactive));
 
-            mHandPaint = new Paint();
-            mHandPaint.setColor(resources.getColor(R.color.analog_hands));
-            mHandPaint.setStrokeWidth(resources.getDimension(R.dimen.analog_hand_stroke));
-            mHandPaint.setAntiAlias(true);
-            mHandPaint.setStrokeCap(Paint.Cap.ROUND);
+            mPrimaryTextPaint = new Paint();
+            mPrimaryTextPaint.setColor(resources.getColor(R.color.text_primary));
+//            mPrimaryTextPaint.setStrokeWidth(resources.getDimension(R.dimen.analog_hand_stroke));
+            mPrimaryTextPaint.setAntiAlias(true);
+//            mPrimaryTextPaint.setStrokeCap(Paint.Cap.ROUND);
 
-            mTime = new Time();
+            mSecondaryTextPaint = new Paint();
+            mSecondaryTextPaint.setColor(resources.getColor(R.color.text_secondary));
         }
 
         @Override
         public void onDestroy() {
-            mUpdateTimeHandler.removeMessages(MSG_UPDATE_TIME);
             super.onDestroy();
         }
 
@@ -154,14 +126,10 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             if (mAmbient != inAmbientMode) {
                 mAmbient = inAmbientMode;
                 if (mLowBitAmbient) {
-                    mHandPaint.setAntiAlias(!inAmbientMode);
+                    mPrimaryTextPaint.setAntiAlias(!inAmbientMode);
                 }
                 invalidate();
             }
-
-            // Whether the timer should be running depends on whether we're visible (as well as
-            // whether we're in ambient mode), so we may need to start or stop the timer.
-            updateTimer();
         }
 
         /**
@@ -182,7 +150,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                     // The user has completed the tap gesture.
                     mTapCount++;
                     mBackgroundPaint.setColor(resources.getColor(mTapCount % 2 == 0 ?
-                            R.color.background : R.color.background2));
+                            R.color.background_ambient : R.color.background_interactive));
                     break;
             }
             invalidate();
@@ -190,6 +158,8 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
+
+            mCalendar = Calendar.getInstance();
 
             // Draw the background.
             if (isInAmbientMode()) {
@@ -202,7 +172,6 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, MMM d yyyy", Locale.CANADA);
             String date, hour, minute, tempHigh, tempLow;
 
-            boolean is24 = DateFormat.is24HourFormat(WeatherWatchFace.this);
             date = dateFormat.format(mCalendar.getTime());
             hour = getHour();
             minute = getMinute();
@@ -215,25 +184,25 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             float y = 60f;
 
             // draw time
-            canvas.drawText(":", x, y, mHandPaint);
+            canvas.drawText(":", x, y, mPrimaryTextPaint);
 
-            x = xCenter - mHandPaint.measureText(hour);
-            canvas.drawText(hour, x, y, mHandPaint);
+            x = xCenter - mPrimaryTextPaint.measureText(hour);
+            canvas.drawText(hour, x, y, mPrimaryTextPaint);
 
-            x = xCenter + mHandPaint.measureText(":");
-            canvas.drawText(minute, x, y, mHandPaint);
+            x = xCenter + mPrimaryTextPaint.measureText(":");
+            canvas.drawText(minute, x, y, mPrimaryTextPaint);
 
             // date text
             y += 40f;
-            x = xCenter - mHandPaint.measureText(date) / 2;
-            canvas.drawText(date, x, y, mHandPaint);
+            x = xCenter - mPrimaryTextPaint.measureText(date) / 2;
+            canvas.drawText(date, x, y, mPrimaryTextPaint);
 
             // temps
             y += 40f;
-            x = xCenter - mHandPaint.measureText(tempHigh);
-            canvas.drawText(tempHigh, x, y, mHandPaint);
+            x = xCenter - mPrimaryTextPaint.measureText(tempHigh);
+            canvas.drawText(tempHigh, x, y, mPrimaryTextPaint);
             x = xCenter;
-            canvas.drawText(tempLow, x, y, mHandPaint);
+            canvas.drawText(tempLow, x, y, mPrimaryTextPaint);
         }
 
         private String getIcon() {
@@ -263,15 +232,11 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 registerReceiver();
 
                 // Update time zone in case it changed while we weren't visible.
-                mTime.clear(TimeZone.getDefault().getID());
-                mTime.setToNow();
+                mCalendar = Calendar.getInstance();
+                mCalendar.setTimeZone(TimeZone.getTimeZone(TimeZone.getDefault().getID()));
             } else {
                 unregisterReceiver();
             }
-
-            // Whether the timer should be running depends on whether we're visible (as well as
-            // whether we're in ambient mode), so we may need to start or stop the timer.
-            updateTimer();
         }
 
         private void registerReceiver() {
@@ -289,38 +254,6 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             }
             mRegisteredTimeZoneReceiver = false;
             WeatherWatchFace.this.unregisterReceiver(mTimeZoneReceiver);
-        }
-
-        /**
-         * Starts the {@link #mUpdateTimeHandler} timer if it should be running and isn't currently
-         * or stops it if it shouldn't be running but currently is.
-         */
-        private void updateTimer() {
-            mUpdateTimeHandler.removeMessages(MSG_UPDATE_TIME);
-            if (shouldTimerBeRunning()) {
-                mUpdateTimeHandler.sendEmptyMessage(MSG_UPDATE_TIME);
-            }
-        }
-
-        /**
-         * Returns whether the {@link #mUpdateTimeHandler} timer should be running. The timer should
-         * only run when we're visible and in interactive mode.
-         */
-        private boolean shouldTimerBeRunning() {
-            return isVisible() && !isInAmbientMode();
-        }
-
-        /**
-         * Handle updating the time periodically in interactive mode.
-         */
-        private void handleUpdateTimeMessage() {
-            invalidate();
-            if (shouldTimerBeRunning()) {
-                long timeMs = System.currentTimeMillis();
-                long delayMs = INTERACTIVE_UPDATE_RATE_MS
-                        - (timeMs % INTERACTIVE_UPDATE_RATE_MS);
-                mUpdateTimeHandler.sendEmptyMessageDelayed(MSG_UPDATE_TIME, delayMs);
-            }
         }
     }
 }

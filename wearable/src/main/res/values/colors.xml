@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="background">#000000</color>
-    <color name="background2">#000088</color>
-    <color name="analog_hands">#cccccc</color>
+    <color name="background_ambient">#000000</color>
+    <color name="background_interactive">#00A9EF</color>
+    <color name="text_primary">#ffffff</color>
+    <color name="text_secondary">#cccccc</color>
 </resources>
