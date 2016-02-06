@@ -78,12 +78,6 @@
                 android:value="com.example.android.sunshine.app.MainActivity" />
         </activity>
 
-        <provider
-            android:name=".data.WeatherProvider"
-            android:authorities="@string/content_authority"
-            android:exported="false"
-            android:syncable="true" />
-
         <!-- SyncAdapter's dummy authentication service -->
         <service android:name=".sync.SunshineAuthenticatorService">
             <intent-filter>

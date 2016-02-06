@@ -32,6 +32,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
+import android.util.Log;
 import android.view.SurfaceHolder;
 
 import java.text.SimpleDateFormat;
@@ -58,6 +59,8 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
     }
 
     private class Engine extends CanvasWatchFaceService.Engine {
+
+        private static final String TAG = "MyWatchFace.Engine";
 
         boolean mLowBitAmbient;
         boolean mBurnProtection;
@@ -99,9 +102,12 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         private class FetchWeatherTask extends AsyncTask<Void, Void, Weather> {
 
+            private static final String TAG = "FetchWeatherTask";
+
             @Override
             protected Weather doInBackground(Void... params) {
-                Uri uri = Uri.parse("content://com.example.android.sunshine.app/weather");
+                Log.d(TAG, "doInBackground: Fetching data");
+                Uri uri = Uri.parse("content://com.example.android.sunshine.app/weather/94043/1454742000000");
                 Cursor c = getContentResolver().query(uri, null, null, null, null);
 
                 if (c != null && c.moveToFirst()) {
@@ -119,8 +125,10 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             @Override
             protected void onPostExecute(Weather weather) {
                 super.onPostExecute(weather);
+                Log.d(TAG, "onPostExecute: Made it to the postExecute");
 
                 if (weather != null) {
+                    Log.d(TAG, "onPostExecute: there is data " + String.valueOf(weather.high));
                     mHigh = String.valueOf(weather.high);
                     mLow = String.valueOf(weather.low);
                 }
@@ -130,6 +138,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
+            Log.d(TAG, "onCreate: in the onCreate");
 
             setWatchFaceStyle(new WatchFaceStyle.Builder(WeatherWatchFace.this)
                     .setCardPeekMode(WatchFaceStyle.PEEK_MODE_SHORT)

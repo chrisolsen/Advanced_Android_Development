@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Common</string>
+    <string name="content_authority">com.example.android.sunshine.app</string>
 </resources>

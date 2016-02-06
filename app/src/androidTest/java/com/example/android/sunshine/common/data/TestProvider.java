@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.example.android.sunshine.app.data;
+package com.example.android.sunshine.common.data;
 
 import android.content.ComponentName;
 import android.content.ContentUris;
@@ -26,10 +26,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.test.AndroidTestCase;
 import android.util.Log;
-
-import com.example.android.sunshine.common.data.WeatherContract;
-import com.example.android.sunshine.common.data.WeatherDbHelper;
-import com.example.android.sunshine.common.data.WeatherProvider;
 
 import com.example.android.sunshine.common.data.WeatherContract.LocationEntry;
 import com.example.android.sunshine.common.data.WeatherContract.WeatherEntry;

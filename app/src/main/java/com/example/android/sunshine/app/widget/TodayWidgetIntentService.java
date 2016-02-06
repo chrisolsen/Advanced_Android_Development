@@ -32,7 +32,7 @@ import android.widget.RemoteViews;
 import com.example.android.sunshine.app.MainActivity;
 import com.example.android.sunshine.app.R;
 import com.example.android.sunshine.app.Utility;
-import com.example.android.sunshine.app.data.WeatherContract;
+import com.example.android.sunshine.common.data.WeatherContract;
 
 /**
  * IntentService which handles updating all Today widgets with the latest data
