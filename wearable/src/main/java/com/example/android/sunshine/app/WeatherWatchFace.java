@@ -14,24 +14,23 @@
  * limitations under the License.
  */
 
-package com.example.android.sunshine.wearable;
+package com.example.android.sunshine.app;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
-import android.database.Cursor;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
-import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
+import android.util.Log;
 import android.view.SurfaceHolder;
 
 import java.text.SimpleDateFormat;
@@ -46,19 +45,9 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
         return new Engine();
     }
 
-    private class Weather {
-
-        public Weather(int min, int max) {
-            this.low = min;
-            this.high = max;
-        }
-
-        int high;
-        int low;
-    }
-
     private class Engine extends CanvasWatchFaceService.Engine {
 
+        private static final String TAG = "Watch::Engine";
         boolean mLowBitAmbient;
         boolean mBurnProtection;
         boolean mRegisteredTimeZoneReceiver = false;
@@ -66,8 +55,8 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         int mTapCount;
 
-        String mHigh;
-        String mLow;
+        String mHigh = "";
+        String mLow = "";
 
         float mLargeTextSize;
         float mMediumTextSize;
@@ -88,6 +77,18 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         Calendar mCalendar = Calendar.getInstance();
 
+        final BroadcastReceiver mLocalBroadcastReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Bundle bundle = intent.getExtras();
+                mLow = bundle.getString(WeatherDataService.TEMP_LOW, "");
+                mHigh = bundle.getString(WeatherDataService.TEMP_HIGH, "");
+                Log.d(TAG, String.format("onReceive: LocalBroadcast %s, %s", mLow, mHigh));
+
+                invalidate();
+            }
+        };
+
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -97,39 +98,12 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             }
         };
 
-        private class FetchWeatherTask extends AsyncTask<Void, Void, Weather> {
-
-            @Override
-            protected Weather doInBackground(Void... params) {
-                Uri uri = Uri.parse("content://com.example.android.sunshine.app/weather");
-                Cursor c = getContentResolver().query(uri, null, null, null, null);
-
-                if (c != null && c.moveToFirst()) {
-                    int min = c.getInt(c.getColumnIndex("min"));
-                    int max = c.getInt(c.getColumnIndex("max"));
-
-                    c.close();
-
-                    return new Weather(min, max);
-                }
-
-                return null;
-            }
-
-            @Override
-            protected void onPostExecute(Weather weather) {
-                super.onPostExecute(weather);
-
-                if (weather != null) {
-                    mHigh = String.valueOf(weather.high);
-                    mLow = String.valueOf(weather.low);
-                }
-            }
-        }
-
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
+
+            LocalBroadcastManager.getInstance(WeatherWatchFace.this).registerReceiver(
+                    mLocalBroadcastReceiver, new IntentFilter(WeatherDataService.TEMP_BROADCAST_NAME));
 
             setWatchFaceStyle(new WatchFaceStyle.Builder(WeatherWatchFace.this)
                     .setCardPeekMode(WatchFaceStyle.PEEK_MODE_SHORT)
@@ -183,13 +157,14 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             mSmallTextPaint.setAntiAlias(true);
             mSmallTextPaint.setTextSize(mSmallTextSize);
 
-            // fetch the weather
-            new FetchWeatherTask().execute();
+            startService(new Intent(WeatherWatchFace.this, WeatherDataService.class));
         }
 
         @Override
         public void onDestroy() {
             super.onDestroy();
+
+            LocalBroadcastManager.getInstance(WeatherWatchFace.this).unregisterReceiver(mLocalBroadcastReceiver);
         }
 
         @Override
@@ -243,7 +218,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
-
+            Log.d(TAG, "onDraw");
             mCalendar = Calendar.getInstance();
 
             // Draw the background.
@@ -260,8 +235,6 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             date = dateFormat.format(mCalendar.getTime());
             hour = getHour();
             minute = getMinute();
-            tempHigh = mHigh != null ? mHigh + "°" : "";
-            tempLow = mLow != null ? mLow + "°" : "";
 
             // init offsets
             float xCenter = bounds.centerX();
@@ -292,10 +265,10 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
             // temps
             y += mMediumTextSize + mTextPadding;
-            x = xCenter - mMediumThickTextPaint.measureText(tempHigh);
-            canvas.drawText(tempHigh, x, y, mMediumThickTextPaint);
-            x = xCenter;
-            canvas.drawText(tempLow, x, y, mMediumThinTextPaint);
+            x = xCenter - mMediumThickTextPaint.measureText(mHigh) - 5;
+            canvas.drawText(mHigh, x, y, mMediumThickTextPaint);
+            x = xCenter + 5;
+            canvas.drawText(mLow, x, y, mMediumThinTextPaint);
         }
 
         @Override

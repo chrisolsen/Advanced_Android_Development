@@ -23,11 +23,13 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteQueryBuilder;
 import android.net.Uri;
+import android.util.Log;
 
 public class WeatherProvider extends ContentProvider {
 
     // The URI Matcher used by this content provider.
     private static final UriMatcher sUriMatcher = buildUriMatcher();
+    private static final String TAG = "WeatherProvider";
     private WeatherDbHelper mOpenHelper;
 
     static final int WEATHER = 100;
@@ -97,6 +99,8 @@ public class WeatherProvider extends ContentProvider {
             Uri uri, String[] projection, String sortOrder) {
         String locationSetting = WeatherContract.WeatherEntry.getLocationSettingFromUri(uri);
         long date = WeatherContract.WeatherEntry.getDateFromUri(uri);
+
+        Log.d(TAG, "getWeatherByLocationSettingAndDate: " + locationSetting + " " + date);
 
         return sWeatherByLocationSettingQueryBuilder.query(mOpenHelper.getReadableDatabase(),
                 projection,
