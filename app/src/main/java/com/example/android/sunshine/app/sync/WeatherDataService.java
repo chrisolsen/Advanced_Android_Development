@@ -12,6 +12,7 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
@@ -37,18 +38,19 @@ public class WeatherDataService extends WearableListenerService implements Googl
                 .build();
         mGoogleClientApi.connect();
     }
+    
+    @Override
+    public void onMessageReceived(MessageEvent messageEvent) {
+        super.onMessageReceived(messageEvent);
+        Log.d(TAG, "onMessageReceived: " + messageEvent.getPath());
+        sendDataToWearable();
+    }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "onStartCommand");
 
-        String[] temps = getCurrentTemps();
-
-        if (temps != null && temps.length == 2) {
-            Log.d(TAG, String.format("onPeerConnected: temps %s %s", temps[0], temps[1]));
-            notifyWearables(mGoogleClientApi, temps[0], temps[1]);
-        }
-
+        sendDataToWearable();
         return super.onStartCommand(intent, flags, startId);
     }
 
@@ -56,7 +58,10 @@ public class WeatherDataService extends WearableListenerService implements Googl
     public void onPeerConnected(Node peer) {
         super.onPeerConnected(peer);
         Log.d(TAG, "onPeerConnected: " + peer.getDisplayName());
+        sendDataToWearable();
+    }
 
+    private void sendDataToWearable() {
         String[] temps = getCurrentTemps();
 
         if (temps != null && temps.length == 2) {
@@ -129,11 +134,19 @@ public class WeatherDataService extends WearableListenerService implements Googl
     @Override
     public void onConnected(Bundle bundle) {
         Log.d(TAG, "onConnected");
+        Wearable.DataApi.addListener(mGoogleClientApi, this);
     }
 
     @Override
     public void onConnectionSuspended(int i) {
-        Log.d(TAG, "onConnectionSuspended: ");
+        Log.d(TAG, "onConnectionSuspended");
+        Wearable.DataApi.removeListener(mGoogleClientApi, this);
+    }
+
+    @Override
+    public void onPeerDisconnected(Node peer) {
+        super.onPeerDisconnected(peer);
+        Log.d(TAG, "onPeerDisconnected: " + peer.getId());
     }
 
     @Override
