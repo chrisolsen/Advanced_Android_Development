@@ -7,6 +7,7 @@ import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
 import com.google.android.gms.wearable.DataMap;
@@ -62,14 +63,23 @@ public class WeatherDataService extends WearableListenerService implements Googl
     @Override
     public void onConnected(Bundle bundle) {
         Log.d(TAG, "onConnected");
-        NodeApi.GetConnectedNodesResult result = Wearable.NodeApi.getConnectedNodes(mGoogleClientApi).await();
-        for (Node node : result.getNodes()) {
-            MessageApi.SendMessageResult r = Wearable.MessageApi.sendMessage(
-                    mGoogleClientApi, node.getId(), "send me the data", null).await();
-            if (!r.getStatus().isSuccess()) {
-                Log.d(TAG, "onConnected: Failed to send message to handheld");
+        Wearable.NodeApi.getConnectedNodes(mGoogleClientApi).setResultCallback(new ResultCallback<NodeApi.GetConnectedNodesResult>() {
+            @Override
+            public void onResult(NodeApi.GetConnectedNodesResult result) {
+                for (Node node : result.getNodes()) {
+                    Wearable.MessageApi.sendMessage(
+                            mGoogleClientApi, node.getId(), "send me the data", null)
+                            .setResultCallback(new ResultCallback<MessageApi.SendMessageResult>() {
+                                @Override
+                                public void onResult(MessageApi.SendMessageResult r) {
+                                    if (!r.getStatus().isSuccess()) {
+                                        Log.d(TAG, "onConnected: Failed to send message to handheld");
+                                    }
+                                }
+                            });
+                }
             }
-        }
+        });
     }
 
     @Override
