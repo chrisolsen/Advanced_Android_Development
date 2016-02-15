@@ -21,6 +21,7 @@ import com.google.android.gms.wearable.WearableListenerService;
 public class WeatherDataService extends WearableListenerService implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
     public static final String TEMP_BROADCAST_NAME = "WeatherDataService:WeatherBroadcast";
+    public static final String WEATHER_ID = "weatherId";
     public static final String TEMP_HIGH = "tempHigh";
     public static final String TEMP_LOW = "tempLow";
 
@@ -41,16 +42,19 @@ public class WeatherDataService extends WearableListenerService implements Googl
 
     @Override
     public void onDataChanged(DataEventBuffer dataEvents) {
+        Log.d(TAG, "onDataChanged: ");
         for (DataEvent dataEvent : dataEvents) {
             if (dataEvent.getType() == DataEvent.TYPE_CHANGED) {
                 DataMap dataMap = DataMapItem.fromDataItem(dataEvent.getDataItem()).getDataMap();
                 String path = dataEvent.getDataItem().getUri().getPath();
                 if (path.equals("/weather")) {
+                    int weatherId = dataMap.getInt("weatherId");
                     String tempLow = dataMap.getString("tempLow");
                     String tempHigh = dataMap.getString("tempHigh");
 
                     LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(this);
                     Intent intent = new Intent(TEMP_BROADCAST_NAME);
+                    intent.putExtra(WEATHER_ID, weatherId);
                     intent.putExtra(TEMP_LOW, tempLow);
                     intent.putExtra(TEMP_HIGH, tempHigh);
 

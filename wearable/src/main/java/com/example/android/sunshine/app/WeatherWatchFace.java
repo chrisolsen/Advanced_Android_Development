@@ -21,6 +21,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -75,20 +77,22 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
         Paint mBackgroundPaint;
 
-        Calendar mCalendar = Calendar.getInstance();
-
+        Bitmap mIcon;
         final BroadcastReceiver mLocalBroadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 Bundle bundle = intent.getExtras();
                 mLow = bundle.getString(WeatherDataService.TEMP_LOW, "");
                 mHigh = bundle.getString(WeatherDataService.TEMP_HIGH, "");
-                Log.d(TAG, String.format("onReceive: LocalBroadcast %s, %s", mLow, mHigh));
+
+                int weatherId = bundle.getInt(WeatherDataService.WEATHER_ID, -1);
+                int iconId = getIconResourceForWeatherCondition(weatherId);
+                mIcon = BitmapFactory.decodeResource(getResources(), iconId);
 
                 invalidate();
             }
         };
-
+        Calendar mCalendar = Calendar.getInstance();
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -230,7 +234,7 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
 
             // date values
             SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, MMM d yyyy", Locale.CANADA);
-            String date, hour, minute, tempHigh, tempLow;
+            String date, hour, minute;
 
             date = dateFormat.format(mCalendar.getTime());
             hour = getHour();
@@ -263,12 +267,23 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             y = yCenter + mYCenterOffset;
             canvas.drawLine(xCenter - mDividerWidth / 2, y, xCenter + mDividerWidth / 2, y, mMediumThinTextPaint);
 
-            // temps
-            y += mMediumTextSize + mTextPadding;
-            x = xCenter - mMediumThickTextPaint.measureText(mHigh) - 5;
-            canvas.drawText(mHigh, x, y, mMediumThickTextPaint);
-            x = xCenter + 5;
-            canvas.drawText(mLow, x, y, mMediumThinTextPaint);
+            // temps and icon
+            if (mIcon != null && !mHigh.equals("") && !mLow.equals("")) {
+                y += 20;
+                // Icon: center - iconSize - iconPadding - tempHighOffset
+                // y offset not adjusted yet since icon is drawn below the y coord where as fonts
+                // are drawn above it.
+                x = xCenter - 60 - 30 - mMediumThickTextPaint.measureText(mHigh) / 2;
+                canvas.drawBitmap(mIcon, x, y, null);
+
+                // high temp
+                y += mMediumTextSize + mTextPadding;
+                x = xCenter;
+                canvas.drawText(mHigh, x, y, mMediumThickTextPaint);
+
+                x = xCenter + 28 + mMediumThickTextPaint.measureText(mHigh) / 2;
+                canvas.drawText(mLow, x, y, mMediumThinTextPaint);
+            }
         }
 
         @Override
@@ -303,10 +318,6 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
             WeatherWatchFace.this.unregisterReceiver(mTimeZoneReceiver);
         }
 
-        private String getIcon() {
-            return "";
-        }
-
         private String getMinute() {
             int min = mCalendar.get(Calendar.MINUTE);
             if (min < 10) {
@@ -322,6 +333,43 @@ public class WeatherWatchFace extends CanvasWatchFaceService {
                 return "0" + String.valueOf(hour);
             }
             return String.valueOf(hour);
+        }
+
+
+        /**
+         * Helper method to provide the icon resource id according to the weather condition id returned
+         * by the OpenWeatherMap call.
+         *
+         * @param weatherId from OpenWeatherMap API response
+         * @return resource id for the corresponding icon. -1 if no relation is found.
+         */
+        public int getIconResourceForWeatherCondition(int weatherId) {
+            // Based on weather code data found at:
+            // http://bugs.openweathermap.org/projects/api/wiki/Weather_Condition_Codes
+            if (weatherId >= 200 && weatherId <= 232) {
+                return R.drawable.ic_storm;
+            } else if (weatherId >= 300 && weatherId <= 321) {
+                return R.drawable.ic_light_rain;
+            } else if (weatherId >= 500 && weatherId <= 504) {
+                return R.drawable.ic_rain;
+            } else if (weatherId == 511) {
+                return R.drawable.ic_snow;
+            } else if (weatherId >= 520 && weatherId <= 531) {
+                return R.drawable.ic_rain;
+            } else if (weatherId >= 600 && weatherId <= 622) {
+                return R.drawable.ic_snow;
+            } else if (weatherId >= 701 && weatherId <= 761) {
+                return R.drawable.ic_fog;
+            } else if (weatherId == 761 || weatherId == 781) {
+                return R.drawable.ic_storm;
+            } else if (weatherId == 800) {
+                return R.drawable.ic_clear;
+            } else if (weatherId == 801) {
+                return R.drawable.ic_light_clouds;
+            } else if (weatherId >= 802 && weatherId <= 804) {
+                return R.drawable.ic_cloudy;
+            }
+            return -1;
         }
     }
 }

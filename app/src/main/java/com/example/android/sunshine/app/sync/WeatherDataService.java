@@ -38,7 +38,7 @@ public class WeatherDataService extends WearableListenerService implements Googl
                 .build();
         mGoogleClientApi.connect();
     }
-    
+
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
         super.onMessageReceived(messageEvent);
@@ -62,19 +62,19 @@ public class WeatherDataService extends WearableListenerService implements Googl
     }
 
     private void sendDataToWearable() {
-        String[] temps = getCurrentTemps();
+        WeatherData data = getWeather();
 
-        if (temps != null && temps.length == 2) {
-            Log.d(TAG, String.format("onPeerConnected: temps %s %s", temps[0], temps[1]));
-            notifyWearables(mGoogleClientApi, temps[0], temps[1]);
+        if (data.weatherId != 0) {
+            notifyWearables(mGoogleClientApi, data);
         }
     }
 
-    private String[] getCurrentTemps() {
-        Log.d(TAG, "getCurrentTemps");
+    private WeatherData getWeather() {
+        Log.d(TAG, "getWeather");
         String[] FORECAST_COLUMNS = {
+                WeatherContract.WeatherEntry.COLUMN_WEATHER_ID,
                 WeatherContract.WeatherEntry.COLUMN_MAX_TEMP,
-                WeatherContract.WeatherEntry.COLUMN_MIN_TEMP
+                WeatherContract.WeatherEntry.COLUMN_MIN_TEMP,
         };
 
         // Get today's data from the ContentProvider
@@ -99,22 +99,21 @@ public class WeatherDataService extends WearableListenerService implements Googl
         }
 
         // Extract the weather data from the Cursor
-        double maxTemp = data.getDouble(0);
-        double minTemp = data.getDouble(1);
+        int weatherId = data.getInt(0);
+        double maxTemp = data.getDouble(1);
+        double minTemp = data.getDouble(2);
         data.close();
 
-        return new String[]{
+        return new WeatherData(weatherId,
                 Utility.formatTemperature(this, minTemp),
-                Utility.formatTemperature(this, maxTemp)
-        };
+                Utility.formatTemperature(this, maxTemp));
     }
 
-    private void notifyWearables(GoogleApiClient client, String low, String high) {
-        Log.d(TAG, String.format("notifyWearables: %s %s", low, high));
-
+    private void notifyWearables(GoogleApiClient client, WeatherData data) {
         PutDataMapRequest map = PutDataMapRequest.create("/weather");
-        map.getDataMap().putString("tempLow", low);
-        map.getDataMap().putString("tempHigh", high);
+        map.getDataMap().putInt("weatherId", data.weatherId);
+        map.getDataMap().putString("tempLow", data.tempLow);
+        map.getDataMap().putString("tempHigh", data.tempHigh);
         map.getDataMap().putLong("timestamp", new Date().getTime());
 
         PutDataRequest request = map.asPutDataRequest();
@@ -128,7 +127,6 @@ public class WeatherDataService extends WearableListenerService implements Googl
                 }
             }
         });
-
     }
 
     @Override
@@ -152,5 +150,17 @@ public class WeatherDataService extends WearableListenerService implements Googl
     @Override
     public void onConnectionFailed(ConnectionResult connectionResult) {
         Log.d(TAG, "onConnectionFailed: ");
+    }
+
+    public class WeatherData {
+        int weatherId;
+        String tempHigh;
+        String tempLow;
+
+        public WeatherData(int weatherId, String tempLow, String tempHigh) {
+            this.weatherId = weatherId;
+            this.tempLow = tempLow;
+            this.tempHigh = tempHigh;
+        }
     }
 }
