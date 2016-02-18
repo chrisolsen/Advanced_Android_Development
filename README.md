@@ -22,6 +22,13 @@ Getting Started
 This sample uses the Gradle build system.  To build this project, use the
 "gradlew build" command or use "Import Project" in Android Studio.
 
+*Important* A weather api key must added to the app/build.gradle file to the following section.
+```
+buildTypes.each {
+	it.buildConfigField 'String', 'OPEN_WEATHER_MAP_API_KEY', '"WEATHER_API_KEY"'
+}
+```
+
 Support
 -------
 
